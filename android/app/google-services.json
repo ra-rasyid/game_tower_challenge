@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "77278129399",
+    "project_id": "towerchallenge3008",
+    "storage_bucket": "towerchallenge3008.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:77278129399:android:c91b80aa583dce71e4b7f2",
+        "android_client_info": {
+          "package_name": "com.example.tower_challenge"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjP2l-IcgW_cvxT2aDh46R3VQ-uIqWvUY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
