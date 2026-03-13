@@ -23,13 +23,13 @@ class TeamArenaComponent extends PositionComponent with DragCallbacks {
   @override
   void onDragUpdate(DragUpdateEvent event) {
     double nextX = towerContainer.x + event.localDelta.x;
-    towerContainer.x = nextX.clamp(-(20 * 90.0) + size.x, 0); // Scroll limit
+    // Limit geser agar tidak hilang dari layar
+    towerContainer.x = nextX.clamp(-(20 * 95.0) + size.x, 0); 
   }
 
   @override
   void update(double dt) {
     super.update(dt);
-    // INI KUNCI AGAR TEAM B MUNCUL:
     final currentData = team == 'A' ? controller.towersA : controller.towersB;
     
     if (currentData.length != _lastCount || (currentData.isNotEmpty && towerContainer.children.isEmpty)) {
@@ -46,7 +46,7 @@ class TeamArenaComponent extends PositionComponent with DragCallbacks {
         team: team,
         onClaim: (id, t) => controller.openAttemptOverlay(newData[i], t),
       )..size = Vector2(65, size.y * 0.75)
-       ..position = Vector2(20 + (i * 90.0), size.y * 0.15));
+       ..position = Vector2(20 + (i * 95.0), size.y * 0.15));
     }
   }
 }
