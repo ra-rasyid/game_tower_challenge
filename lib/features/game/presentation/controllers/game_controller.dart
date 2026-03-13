@@ -27,12 +27,12 @@ class GameController extends GetxController {
     listenToMatchData();
   }
 
-  // Generate Data Awal (Klik Reset di App)
+  // Generate Data Awal
   Future<void> initializeMatch() async {
     final matchRef = _db.ref('liveMatches/match123');
     Map<String, dynamic> towers = {};
     for (int i = 1; i <= 20; i++) {
-      towers["tower_$i"] = {"startValue": (i * 15) + 5, "state": "available"};
+      towers["tower_$i"] = {"startValue": (i * 12) + 5, "state": "available"};
     }
 
     await matchRef.set({
@@ -83,34 +83,47 @@ class GameController extends GetxController {
     return TowerStatus.available;
   }
 
-  // --- NAVIGASI KE DETAIL ---
   void openAttemptOverlay(Tower tower, String team) {
     currentValue.value = tower.startValue;
     movesCount.value = 0;
     Get.to(() => TowerDetailPage(tower: tower, team: team));
   }
 
+  // FUNGSI HITUNG DI DETAIL
   void calculateInDetail(int val, Tower tower, String team, bool isMul) {
     if (isMul) currentValue.value *= val; else currentValue.value += val;
     movesCount.value++;
 
     if (currentValue.value == tower.targetValue) {
-      Get.back();
+      Get.back(); // Tutup halaman detail
+      Get.snackbar("BERHASIL!", "Tower diselesaikan!", 
+          backgroundColor: Colors.green, colorText: Colors.white);
       solveTower(tower.id, team, movesCount.value);
     } else if (currentValue.value > 200000) {
       Get.back();
-      Get.snackbar("Limit!", "Angka terlalu besar");
+      Get.snackbar("Gagal", "Melebihi limit!");
     }
   }
 
+  // FUNGSI UPDATE FIREBASE (FIXED)
   Future<void> solveTower(String towerId, String team, int moves) async {
     final ref = _db.ref('liveMatches/match123/teams/$team');
-    await ref.runTransaction((obj) {
-      if (obj == null) return Transaction.abort();
-      Map d = Map.from(obj as Map);
-      d['score'] = (d['score'] ?? 0) + 10;
-      d['towers'][towerId]['state'] = 'solved';
-      return Transaction.success(d);
+    
+    await ref.runTransaction((Object? teamData) {
+      if (teamData == null) return Transaction.abort();
+      
+      Map<String, dynamic> data = Map<String, dynamic>.from(teamData as Map);
+      
+      // Update Skor Tim (+10)
+      data['score'] = (data['score'] ?? 0) + 10;
+      
+      // Kunci nilai tower di 1000 dan ubah status ke solved
+      if (data['towers'] != null && data['towers'][towerId] != null) {
+        data['towers'][towerId]['startValue'] = 1000;
+        data['towers'][towerId]['state'] = 'solved';
+      }
+      
+      return Transaction.success(data);
     });
   }
 }

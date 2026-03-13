@@ -13,11 +13,11 @@ class TowerComponent extends PositionComponent with TapCallbacks {
     required this.tower,
     required this.team,
     required this.onClaim,
-  }) : super(size: Vector2(60, 180)); // Ukuran tower lebih tinggi
+  }) : super(size: Vector2(60, 180));
 
   @override
   void render(Canvas canvas) {
-    // 1. Gambar Background Tower (Warna Ungu Gelap sesuai desain)
+    // 1. Gambar Background Tower (Warna Ungu Gelap)
     final bgPaint = Paint()..color = const Color(0xFF6A1B9A);
     final bgRect = RRect.fromRectAndRadius(
       size.toRect(),
@@ -29,18 +29,24 @@ class TowerComponent extends PositionComponent with TapCallbacks {
     double progressRatio = (tower.startValue / tower.targetValue).clamp(0.0, 1.0);
     double progressHeight = size.y * progressRatio;
 
-    // 3. Gambar Isi Progress (Warna Tosca/Biru Muda)
-    final progressPaint = Paint()..color = const Color(0xFF4DD0E1);
+    // 3. LOGIKA WARNA DINAMIS: 
+    // Jika sudah SOLVED atau nilai >= 800 (80%), pakai warna UNGU TERANG
+    // Jika belum, pakai warna BIRU TOSCA
+    Color barColor = (tower.status == TowerStatus.solved || tower.startValue >= 800)
+        ? const Color(0xFF9C27B0) // Ungu Terang
+        : const Color(0xFF4DD0E1); // Biru Tosca
+
+    final progressPaint = Paint()..color = barColor;
     final progressRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(0, size.y - progressHeight, size.x, progressHeight),
       const Radius.circular(12),
     );
     canvas.drawRRect(progressRect, progressPaint);
 
-    // 4. Gambar Teks Target (1000) di pojok kiri atas tower
+    // 4. Gambar Teks Target (1000)
     _drawText(canvas, "1000", const Offset(5, 5), fontSize: 10, color: Colors.white70);
 
-    // 5. Gambar Nilai Sekarang (Di atas batang progress)
+    // 5. Gambar Nilai Sekarang
     _drawText(
       canvas, 
       "${tower.startValue}", 
@@ -49,9 +55,11 @@ class TowerComponent extends PositionComponent with TapCallbacks {
       isBold: true
     );
     
-    // 6. Gambar Label Tim (Opsional)
-    if (tower.status == TowerStatus.claimed) {
-      _drawText(canvas, "CLAIMED", Offset(5, size.y - 20), fontSize: 8, color: Colors.yellow);
+    // 6. Indikator Status
+    if (tower.status == TowerStatus.solved) {
+      _drawText(canvas, "DONE", Offset(size.x / 2 - 15, size.y - 20), fontSize: 10, color: Colors.yellow, isBold: true);
+    } else if (tower.status == TowerStatus.claimed) {
+      _drawText(canvas, "CLAIMED", Offset(5, size.y - 20), fontSize: 8, color: Colors.orange);
     }
   }
 
@@ -74,7 +82,7 @@ class TowerComponent extends PositionComponent with TapCallbacks {
 
   @override
   void onTapDown(TapDownEvent event) {
-    // Hanya bisa di-tap jika statusnya available atau sedang diklaim user ini
+    // PROTEKSI: Jika status sudah solved, tower tidak bisa di-klik lagi
     if (tower.status != TowerStatus.solved) {
       onClaim(tower.id, team);
     }
