@@ -10,18 +10,22 @@ class TowerChallengeGame extends FlameGame {
 
   @override
   Future<void> onLoad() async {
-    // Area Team A (Setengah Layar Atas)
+    // Karena panel skor tingginya 120, kita mulai Arena A di y: 120
+    double headerHeight = 120.0;
+    double arenaHeight = (size.y - headerHeight) / 2;
+
+    // Area Team A (Atas - Di bawah panel skor)
     add(TeamArenaComponent(
       team: 'A',
-      size: Vector2(size.x, size.y / 2),
-      position: Vector2(0, 0),
+      size: Vector2(size.x, arenaHeight),
+      position: Vector2(0, headerHeight),
     ));
 
-    // Area Team B (Setengah Layar Bawah)
+    // Area Team B (Bawah)
     add(TeamArenaComponent(
       team: 'B',
-      size: Vector2(size.x, size.y / 2),
-      position: Vector2(0, size.y / 2),
+      size: Vector2(size.x, arenaHeight),
+      position: Vector2(0, headerHeight + arenaHeight),
     ));
   }
 }

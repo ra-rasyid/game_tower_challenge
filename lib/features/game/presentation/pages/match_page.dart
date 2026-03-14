@@ -10,78 +10,38 @@ class MatchPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Inisialisasi controller agar bisa diakses di seluruh widget tree ini
     final controller = Get.put(GameController());
 
     return Scaffold(
+      backgroundColor: const Color(0xFF81C784),
       body: Stack(
         children: [
-          // 1. INTI GAME: Flame Engine sebagai background
-          GameWidget(
-            game: TowerChallengeGame(),
-          ),
-
-          // 2. OVERLAY UI: Scoreboard & Timer
+          GameWidget(game: TowerChallengeGame()),
           Positioned(
-            top: 50,
-            left: 20,
-            right: 20,
+            top: 50, left: 30, right: 30,
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(15),
-              ),
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(20)),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Skor Team A
-                  Column(
-                    children: [
-                      const Text("TEAM A", style: TextStyle(color: Colors.white, fontSize: 12)),
-                      Obx(() => Text(
-                        "${controller.teamAScore}", 
-                        style: const TextStyle(color: Colors.green, fontSize: 24, fontWeight: FontWeight.bold)
-                      )),
-                    ],
-                  ),
-
-                  // Timer
-                  Column(
-                    children: [
-                      const Text("TIME", style: TextStyle(color: Colors.white, fontSize: 12)),
-                      Obx(() => Text(
-                        "${controller.timeLeft}s", 
-                        style: const TextStyle(color: Colors.redAccent, fontSize: 24, fontWeight: FontWeight.bold)
-                      )),
-                    ],
-                  ),
-
-                  // Skor Team B
-                  Column(
-                    children: [
-                      const Text("TEAM B", style: TextStyle(color: Colors.white, fontSize: 12)),
-                      Obx(() => Text(
-                        "${controller.teamBScore}", 
-                        style: const TextStyle(color: Colors.yellow, fontSize: 24, fontWeight: FontWeight.bold)
-                      )),
-                    ],
-                  ),
+                  _score("TEAM A", controller.teamAScore, Colors.greenAccent),
+                  const Text("VS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  _score("TEAM B", controller.teamBScore, Colors.yellowAccent),
                 ],
               ),
             ),
           ),
         ],
       ),
-      
-      // 3. SEEDING BUTTON: Untuk mengisi data awal ke Firebase
-      // Klik tombol ini jika layar masih hitam/kosong
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => controller.initializeMatch(),
-        label: const Text("Reset/Generate Match"),
+        onPressed: () => controller.initializeMatch(), // Reset Global
+        label: const Text("GLOBAL RESET"),
         icon: const Icon(Icons.refresh),
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: Colors.redAccent,
       ),
     );
   }
+
+  Widget _score(String label, RxInt val, Color col) => Column(children: [Text(label, style: const TextStyle(color: Colors.white, fontSize: 10)), Obx(() => Text("${val.value}", style: TextStyle(color: col, fontSize: 24, fontWeight: FontWeight.bold)))]);
 }
