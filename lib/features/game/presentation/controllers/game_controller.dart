@@ -45,6 +45,7 @@ class GameController extends GetxController {
   }
 
   void listenToMatchData() {
+    // Listen Team A secara realtime
     _db.ref('liveMatches/match123/teams/A').onValue.listen((event) {
       final data = event.snapshot.value as Map?;
       if (data != null) {
@@ -53,6 +54,7 @@ class GameController extends GetxController {
       }
     });
 
+    // Listen Team B secara realtime
     _db.ref('liveMatches/match123/teams/B').onValue.listen((event) {
       final data = event.snapshot.value as Map?;
       if (data != null) {
@@ -89,13 +91,16 @@ class GameController extends GetxController {
     Get.to(() => TowerDetailPage(tower: tower, team: team));
   }
 
-  // FUNGSI HITUNG DI DETAIL
+  // --- FUNGSI UPDATE PROGRES REALTIME KE FIREBASE ---
   void calculateInDetail(int val, Tower tower, String team, bool isMul) {
     if (isMul) currentValue.value *= val; else currentValue.value += val;
     movesCount.value++;
 
+    // Update ke Firebase setiap kali ada perubahan angka (stay di 500 jika stuck)
+    updateTowerProgress(tower.id, team, currentValue.value);
+
     if (currentValue.value == tower.targetValue) {
-      Get.back(); // Tutup halaman detail
+      Get.back(); 
       Get.snackbar("BERHASIL!", "Tower diselesaikan!", 
           backgroundColor: Colors.green, colorText: Colors.white);
       solveTower(tower.id, team, movesCount.value);
@@ -105,7 +110,14 @@ class GameController extends GetxController {
     }
   }
 
-  // FUNGSI UPDATE FIREBASE (FIXED)
+  // Update nilai startValue di Firebase secara realtime
+  Future<void> updateTowerProgress(String towerId, String team, int newValue) async {
+    final ref = _db.ref('liveMatches/match123/teams/$team/towers/$towerId');
+    await ref.update({
+      "startValue": newValue,
+    });
+  }
+
   Future<void> solveTower(String towerId, String team, int moves) async {
     final ref = _db.ref('liveMatches/match123/teams/$team');
     
@@ -113,11 +125,8 @@ class GameController extends GetxController {
       if (teamData == null) return Transaction.abort();
       
       Map<String, dynamic> data = Map<String, dynamic>.from(teamData as Map);
-      
-      // Update Skor Tim (+10)
       data['score'] = (data['score'] ?? 0) + 10;
       
-      // Kunci nilai tower di 1000 dan ubah status ke solved
       if (data['towers'] != null && data['towers'][towerId] != null) {
         data['towers'][towerId]['startValue'] = 1000;
         data['towers'][towerId]['state'] = 'solved';

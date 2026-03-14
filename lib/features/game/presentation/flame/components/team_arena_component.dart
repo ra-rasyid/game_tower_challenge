@@ -1,4 +1,5 @@
 // features/game/presentation/flame/components/team_arena_component.dart
+// features/game/presentation/flame/components/team_arena_component.dart
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'tower_component.dart';
@@ -9,7 +10,9 @@ class TeamArenaComponent extends PositionComponent with DragCallbacks {
   final String team;
   final GameController controller = Get.find();
   late PositionComponent towerContainer;
-  int _lastCount = 0;
+  
+  // Hapus _lastCount karena kita ingin update setiap ada perubahan nilai startValue
+  // Kita akan membandingkan data mentah untuk re-render
 
   TeamArenaComponent({required this.team, required Vector2 size, required Vector2 position}) 
       : super(size: size, position: position);
@@ -23,18 +26,34 @@ class TeamArenaComponent extends PositionComponent with DragCallbacks {
   @override
   void onDragUpdate(DragUpdateEvent event) {
     double nextX = towerContainer.x + event.localDelta.x;
-    // Limit geser agar tidak hilang dari layar
     towerContainer.x = nextX.clamp(-(20 * 95.0) + size.x, 0); 
   }
 
   @override
   void update(double dt) {
     super.update(dt);
+    // Observe perubahan data dari GetX secara realtime
     final currentData = team == 'A' ? controller.towersA : controller.towersB;
     
-    if (currentData.length != _lastCount || (currentData.isNotEmpty && towerContainer.children.isEmpty)) {
+    // Refresh jika jumlah tower berubah atau isi startValue tower berubah
+    _refreshIfChanged(currentData);
+  }
+
+  void _refreshIfChanged(List currentData) {
+    // Logika sederhana: jika jumlah anak berbeda atau kita ingin sinkronisasi nilai
+    // Di produksi, sebaiknya gunakan perbandingan ID dan Value yang lebih spesifik
+    if (towerContainer.children.length != currentData.length) {
       _refresh(currentData);
-      _lastCount = currentData.length;
+    } else {
+      // Update nilai startValue pada TowerComponent yang sudah ada tanpa re-render seluruh list
+      final children = towerContainer.children.whereType<TowerComponent>().toList();
+      for (int i = 0; i < children.length; i++) {
+        if (children[i].tower.startValue != currentData[i].startValue || 
+            children[i].tower.status != currentData[i].status) {
+          _refresh(currentData); // Re-render jika ada nilai yang tidak sinkron
+          break;
+        }
+      }
     }
   }
 
