@@ -57,9 +57,21 @@ class TowerDetailPage extends StatelessWidget {
                 const SizedBox(height: 40),
                 Row(
                   children: [
-                    Expanded(child: _buildOpButton("+10", const Color(0xFFD39B6F), () => controller.calculateInDetail(10, tower, team, false))),
+                    Expanded(
+                      child: _buildOpButton(
+                        "+10", 
+                        const Color(0xFFD39B6F), 
+                        () => controller.applyOperation(false, tower, team), // Ganti ke applyOperation
+                      ),
+                    ),
                     const SizedBox(width: 20),
-                    Expanded(child: _buildOpButton("X2", const Color(0xFFD4C16E), () => controller.calculateInDetail(2, tower, team, true))),
+                    Expanded(
+                      child: _buildOpButton(
+                        "X2", 
+                        const Color(0xFFD4C16E), 
+                        () => controller.applyOperation(true, tower, team), // Ganti ke applyOperation
+                      ),
+                    ),
                   ],
                 ),
               ],
