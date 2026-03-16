@@ -35,31 +35,23 @@ class TowerDetailPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 30),
                 Obx(() {
-                  // REVISI: Tetap DONE meskipun lebih dari target
-                  bool isFinished = controller.currentValue.value >= tower.targetValue;
-                  double progress = (controller.currentValue.value / tower.targetValue).clamp(0.0, 1.0);
+                  // REVISI: Hanya DONE jika tepat 1000
+                  bool isDone = controller.currentValue.value == 1000;
+                  double progress = (controller.currentValue.value / 1000).clamp(0.0, 1.0);
                   
                   return Column(
                     children: [
                       Text(
-                        isFinished ? "DONE!" : "${controller.currentValue.value}", 
-                        style: const TextStyle(
-                          color: Colors.white, 
-                          fontSize: 60, 
-                          fontWeight: FontWeight.bold
-                        )
+                        isDone ? "DONE!" : "${controller.currentValue.value}", 
+                        style: const TextStyle(color: Colors.white, fontSize: 60, fontWeight: FontWeight.bold)
                       ),
                       
                       const SizedBox(height: 10),
                       if (tower.claimedBy != null)
-                        Text(
-                          "Working as: ${tower.claimedBy}", 
-                          style: const TextStyle(color: Colors.white70, fontSize: 14)
-                        ),
+                        Text("Working as: ${tower.claimedBy}", style: const TextStyle(color: Colors.white70, fontSize: 14)),
 
                       const SizedBox(height: 10),
-                      // Reset Tower hanya muncul jika BELUM Done
-                      if (!isFinished)
+                      if (!isDone)
                         TextButton.icon(
                           onPressed: () => controller.resetSingleTower(tower, team),
                           icon: const Icon(Icons.restore, color: Colors.white70),
@@ -67,46 +59,24 @@ class TowerDetailPage extends StatelessWidget {
                         ),
                         
                       const SizedBox(height: 20),
-
-                      // Tombol operasi dibungkus IF agar hilang seketika saat Done
-                      if (!isFinished) 
+                      if (!isDone) 
                         Row(
                           children: [
-                            Expanded(
-                              child: _buildOpButton(
-                                "+10", 
-                                const Color(0xFFD39B6F), 
-                                () => controller.applyOperation(false, tower, team)
-                              )
-                            ),
+                            Expanded(child: _buildOpButton("+10", const Color(0xFFD39B6F), () => controller.applyOperation(false, tower, team))),
                             const SizedBox(width: 20),
-                            Expanded(
-                              child: _buildOpButton(
-                                "X2", 
-                                const Color(0xFFD4C16E), 
-                                () => controller.applyOperation(true, tower, team)
-                              )
-                            ),
+                            Expanded(child: _buildOpButton("X2", const Color(0xFFD4C16E), () => controller.applyOperation(true, tower, team))),
                           ],
                         )
                       else
-                        // Tampilan saat sudah selesai
-                        const Column(
-                          children: [
-                            Icon(Icons.check_circle, color: Colors.yellow, size: 80),
-                            SizedBox(height: 10),
-                            Text("Target Reached!", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
+                        const Icon(Icons.check_circle, color: Colors.yellow, size: 80),
 
                       const SizedBox(height: 30),
-                      
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
                         width: 100,
                         height: 300 * progress,
                         decoration: BoxDecoration(
-                          color: isFinished ? Colors.purpleAccent : Colors.cyan, 
+                          color: isDone ? Colors.purpleAccent : Colors.cyan, 
                           borderRadius: BorderRadius.circular(15), 
                           border: Border.all(color: Colors.white, width: 3)
                         ),

@@ -15,16 +15,19 @@ class GameController extends GetxController {
     databaseURL: 'https://towerchallenge3008-default-rtdb.asia-southeast1.firebasedatabase.app/',
   );
 
+  // --- STATE OBSERVABLES ---
   var teamAScore = 0.obs;
   var teamBScore = 0.obs;
   var towersA = <Tower>[].obs;
   var towersB = <Tower>[].obs;
   var timeLeft = 300.obs; 
 
+  // --- USER INFO ---
   final String userId = "user_ragil"; 
   var userTeam = "A".obs; 
   var players = {}.obs;
   
+  // --- GAMEPLAY STATE ---
   var currentValue = 0.obs;
   var movesCount = 0.obs;
   var towerTimerValue = 15.obs; 
@@ -47,6 +50,7 @@ class GameController extends GetxController {
     _startBotEngine();
   }
 
+  // --- 1. SOLVER: BFS Optimal Path ---
   int calculateOptimalMoves(int start, int target) {
     if (start == target) return 0;
     Queue<int> queue = Queue()..add(start);
@@ -65,20 +69,25 @@ class GameController extends GetxController {
     return -1; 
   }
 
+  // --- 2. CLAIM TOWER TRANSACTION ---
   Future<void> openAttemptOverlay(Tower tower, String team) async {
     if (team != userTeam.value) {
       Get.snackbar("ACCESS DENIED", "Anda di Tim ${userTeam.value}!");
       return;
     }
+
     if (timeLeft.value <= 0 || tower.status == TowerStatus.solved) return;
+
     if (tower.status == TowerStatus.claimed && tower.claimedBy != userId) {
       Get.snackbar("FAILED", "Tower sedang dikerjakan pemain lain!");
       return;
     }
+
     if (tower.claimedBy == userId) {
       _enterTower(tower, team);
       return;
     }
+
     final towerRef = _db.ref('liveMatches/match123/teams/$team/towers/${tower.id}');
     final result = await towerRef.runTransaction((Object? towerData) {
       if (towerData == null) return Transaction.abort();
@@ -91,6 +100,7 @@ class GameController extends GetxController {
       }
       return Transaction.abort();
     });
+
     if (result.committed) {
       _enterTower(tower, team);
     }
@@ -103,78 +113,120 @@ class GameController extends GetxController {
     Get.to(() => TowerDetailPage(tower: tower, team: team));
   }
 
+  // --- 3. BOT ENGINE (KONSISTEN 8 PLAYER & BERURUTAN) ---
   void _startBotEngine() {
     _botEngineTimer?.cancel();
     _botEngineTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
       if (timeLeft.value <= 0) return;
-      _runBotLogic("A");
-      _runBotLogic("B");
+
+      int maxBotsA = (userTeam.value == "A") ? 3 : 4;
+      int maxBotsB = (userTeam.value == "B") ? 3 : 4;
+
+      int activeBotsA = towersA.where((t) => t.status == TowerStatus.claimed && t.claimedBy != null && t.claimedBy!.startsWith("Bot_A")).length;
+      int activeBotsB = towersB.where((t) => t.status == TowerStatus.claimed && t.claimedBy != null && t.claimedBy!.startsWith("Bot_B")).length;
+
+      if (activeBotsA < maxBotsA) _runBotLogic("A");
+      if (activeBotsB < maxBotsB) _runBotLogic("B");
     });
   }
 
   void _runBotLogic(String team) async {
     final towers = (team == "A") ? towersA : towersB;
-    var available = towers.where((t) => t.status == TowerStatus.available).toList();
     
-    if (available.isNotEmpty) {
-      var targetTower = available[Random().nextInt(available.length)];
-      String botName = "Bot_${team}_${Random().nextInt(100)}";
+    Tower? targetTower;
+    try {
+      targetTower = towers.firstWhere((t) => t.status == TowerStatus.available);
+    } catch (e) { targetTower = null; }
+    
+    if (targetTower != null) {
+      int botNum = 1;
+      while (towers.any((t) => t.claimedBy == "Bot_${team}_$botNum")) { botNum++; }
+      String botName = "Bot_${team}_$botNum";
 
       await _db.ref('liveMatches/match123/teams/$team/towers/${targetTower.id}').update({
-        "state": "claimed",
-        "claimedBy": botName,
-        "claimedAt": ServerValue.timestamp
+        "state": "claimed", "claimedBy": botName, "claimedAt": ServerValue.timestamp
       });
 
       int currentVal = targetTower.startValue;
-      int movesNeeded = calculateOptimalMoves(currentVal, TARGET);
-      
-      for (int i = 0; i < movesNeeded; i++) {
+      while (currentVal < TARGET) {
         await Future.delayed(Duration(milliseconds: 1500 + Random().nextInt(2000)));
-        if (currentVal * 2 <= TARGET && (TARGET - (currentVal * 2)) < (TARGET - (currentVal + 10))) {
+        if (timeLeft.value <= 0) return;
+
+        if (currentVal * 2 <= TARGET) {
           currentVal *= 2;
-        } else {
+        } else if (currentVal + 10 <= TARGET) {
           currentVal += 10;
+        } else {
+          // Reset internal bot jika stuck (tidak mungkin dengan target 1000 & +10)
+          break;
         }
-        await _db.ref('liveMatches/match123/teams/$team/towers/${targetTower.id}').update({
-          "startValue": currentVal
-        });
+        await _db.ref('liveMatches/match123/teams/$team/towers/${targetTower.id}').update({"startValue": currentVal});
       }
-      _finishSolveByBot(targetTower, team, botName, movesNeeded);
+      _finishSolveByBot(targetTower, team, botName);
     }
   }
 
-  void _finishSolveByBot(Tower tower, String team, String botName, int moves) async {
+  void _finishSolveByBot(Tower tower, String team, String botName) async {
     await _db.ref('liveMatches/match123/teams/$team/towers/${tower.id}').update({
-      "state": "solved",
-      "solvedBy": botName,
-      "movesTaken": moves,
-      "optimalMoves": moves,
-      "startValue": 1000
+      "state": "solved", "solvedBy": botName, "startValue": 1000
     });
 
     await _db.ref('liveMatches/match123/teams/$team/score').runTransaction((score) {
-      return Transaction.success((score as int? ?? 0) + 1); // Skor berdasarkan jumlah tower solved
+      int newScore = (score as int? ?? 0) + 1;
+      if (newScore >= 20) _showWinnerDialog("TIM $team");
+      return Transaction.success(newScore);
     });
-    // REVISI: Regenerasi dihapus agar tower tetap di situ
   }
 
+  // --- 4. GAMEPLAY LOGIC (REVISI HARUS PAS 1000) ---
   void applyOperation(bool isMultiply, Tower tower, String team) {
-    if (currentValue.value >= TARGET) return;
+    if (currentValue.value == TARGET) return;
+
     int nextValue = isMultiply ? currentValue.value * 2 : currentValue.value + 10;
-    if (nextValue > MAX_VALUE) return;
     
+    if (nextValue > TARGET) {
+      Get.snackbar("TOO MUCH!", "Angka tidak boleh melebihi 1000!", 
+        backgroundColor: Colors.redAccent, colorText: Colors.white);
+      return;
+    }
+
     currentValue.value = nextValue;
     movesCount.value++;
     towerTimerValue.value = 15; 
     
     _db.ref('liveMatches/match123/teams/$team/towers/${tower.id}').update({"startValue": currentValue.value});
     
-    if (currentValue.value >= TARGET) {
-      _finishSolve(tower, team);
-    }
+    if (currentValue.value == TARGET) _finishSolve(tower, team);
   }
 
+  Future<void> _finishSolve(Tower tower, String team) async {
+    _individualTimer?.cancel();
+    await _db.ref('liveMatches/match123/teams/$team/towers/${tower.id}').update({
+      "state": "solved", "solvedBy": userId, "startValue": 1000
+    });
+
+    await _db.ref('liveMatches/match123/teams/$team/score').runTransaction((score) {
+      int newScore = (score as int? ?? 0) + 1;
+      if (newScore >= 20) _showWinnerDialog("TIM $team");
+      return Transaction.success(newScore);
+    });
+
+    Future.delayed(const Duration(milliseconds: 800), () => Get.back());
+  }
+
+  void _showWinnerDialog(String winnerName) {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: const Color(0xFF6A1B9A),
+        title: const Text("MATCH ENDED", textAlign: TextAlign.center, style: TextStyle(color: Colors.yellow)),
+        content: Text("SELAMAT!\n$winnerName MENANG!", textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)),
+        actions: [TextButton(onPressed: () { Get.close(2); initializeMatch(); }, child: const Text("MAIN LAGI"))],
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  // --- 5. INITIALIZE & LISTENERS ---
   Future<void> resetSingleTower(Tower tower, String team) async {
     int newStartValue = (Random().nextInt(18) + 2) * 5;
     await _db.ref('liveMatches/match123/teams/$team/towers/${tower.id}').update({
@@ -183,17 +235,6 @@ class GameController extends GetxController {
     currentValue.value = newStartValue;
     movesCount.value = 0;
     towerTimerValue.value = 15;
-  }
-
-  Future<void> _finishSolve(Tower tower, String team) async {
-    _individualTimer?.cancel();
-    int optimal = calculateOptimalMoves(tower.startValue, TARGET);
-    await _db.ref('liveMatches/match123/teams/$team/towers/${tower.id}').update({
-      "state": "solved", "solvedBy": userId, "movesTaken": movesCount.value, "optimalMoves": optimal, "startValue": 1000
-    });
-    await _db.ref('liveMatches/match123/teams/$team/score').runTransaction((score) => Transaction.success((score as int? ?? 0) + 1));
-    // REVISI: Regenerasi dihapus agar tower tidak berganti
-    Future.delayed(const Duration(milliseconds: 800), () => Get.back());
   }
 
   void startMatchTimer() {
@@ -246,7 +287,7 @@ class GameController extends GetxController {
         claimedBy: value['claimedBy'],
       ));
     });
-    list.sort((a, b) => a.id.compareTo(b.id));
+    list.sort((a, b) => a.id.compareTo(b.id)); 
     return list;
   }
 
