@@ -37,3 +37,17 @@ Transaction Guarding: Implementing Firebase transactions to prevent two players 
 Visual Feedback: Adding a "Car Icon" on top of the tower and loading dots to give players immediate feedback on tower progress.
 
 Humanized Bot Timing: Adding randomized delays between bot moves so the simulation doesn't feel robotic or instantaneous.
+
+
+---
+## Screenshots of AI Interaction
+The following screenshots document the technical discussions held regarding the development of the game's core features:
+
+### 1. Architecture & Frame Rate Optimization
+![Architecture Discussion](./ai_proof/a.png)
+
+### 2. BFS Algorithm & Complexity Analysis
+![BFS Discussion](./ai_proof/b.png)
+
+### 3. Concurrency & AFK Detection Logic
+![Concurrency Discussion](./ai_proof/c.png)
