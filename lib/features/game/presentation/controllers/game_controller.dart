@@ -15,19 +15,16 @@ class GameController extends GetxController {
     databaseURL: 'https://towerchallenge3008-default-rtdb.asia-southeast1.firebasedatabase.app/',
   );
 
-  // --- STATE OBSERVABLES ---
   var teamAScore = 0.obs;
   var teamBScore = 0.obs;
   var towersA = <Tower>[].obs;
   var towersB = <Tower>[].obs;
-  var timeLeft = 300.obs; 
+  var timeLeft = 600.obs; 
 
-  // --- USER INFO ---
   final String userId = "user_ragil"; 
   var userTeam = "A".obs; 
   var players = {}.obs;
   
-  // --- GAMEPLAY STATE ---
   var currentValue = 0.obs;
   var movesCount = 0.obs;
   var towerTimerValue = 15.obs; 
@@ -50,7 +47,6 @@ class GameController extends GetxController {
     _startBotEngine();
   }
 
-  // --- 1. SOLVER: BFS Optimal Path ---
   int calculateOptimalMoves(int start, int target) {
     if (start == target) return 0;
     Queue<int> queue = Queue()..add(start);
@@ -69,25 +65,20 @@ class GameController extends GetxController {
     return -1; 
   }
 
-  // --- 2. CLAIM TOWER TRANSACTION ---
   Future<void> openAttemptOverlay(Tower tower, String team) async {
     if (team != userTeam.value) {
       Get.snackbar("ACCESS DENIED", "Anda di Tim ${userTeam.value}!");
       return;
     }
-
     if (timeLeft.value <= 0 || tower.status == TowerStatus.solved) return;
-
     if (tower.status == TowerStatus.claimed && tower.claimedBy != userId) {
       Get.snackbar("FAILED", "Tower sedang dikerjakan pemain lain!");
       return;
     }
-
     if (tower.claimedBy == userId) {
       _enterTower(tower, team);
       return;
     }
-
     final towerRef = _db.ref('liveMatches/match123/teams/$team/towers/${tower.id}');
     final result = await towerRef.runTransaction((Object? towerData) {
       if (towerData == null) return Transaction.abort();
@@ -100,7 +91,6 @@ class GameController extends GetxController {
       }
       return Transaction.abort();
     });
-
     if (result.committed) {
       _enterTower(tower, team);
     }
@@ -113,18 +103,14 @@ class GameController extends GetxController {
     Get.to(() => TowerDetailPage(tower: tower, team: team));
   }
 
-  // --- 3. BOT ENGINE (KONSISTEN 8 PLAYER & BERURUTAN) ---
   void _startBotEngine() {
     _botEngineTimer?.cancel();
     _botEngineTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
       if (timeLeft.value <= 0) return;
-
       int maxBotsA = (userTeam.value == "A") ? 3 : 4;
       int maxBotsB = (userTeam.value == "B") ? 3 : 4;
-
       int activeBotsA = towersA.where((t) => t.status == TowerStatus.claimed && t.claimedBy != null && t.claimedBy!.startsWith("Bot_A")).length;
       int activeBotsB = towersB.where((t) => t.status == TowerStatus.claimed && t.claimedBy != null && t.claimedBy!.startsWith("Bot_B")).length;
-
       if (activeBotsA < maxBotsA) _runBotLogic("A");
       if (activeBotsB < maxBotsB) _runBotLogic("B");
     });
@@ -132,33 +118,29 @@ class GameController extends GetxController {
 
   void _runBotLogic(String team) async {
     final towers = (team == "A") ? towersA : towersB;
-    
     Tower? targetTower;
     try {
       targetTower = towers.firstWhere((t) => t.status == TowerStatus.available);
     } catch (e) { targetTower = null; }
-    
     if (targetTower != null) {
       int botNum = 1;
       while (towers.any((t) => t.claimedBy == "Bot_${team}_$botNum")) { botNum++; }
       String botName = "Bot_${team}_$botNum";
-
       await _db.ref('liveMatches/match123/teams/$team/towers/${targetTower.id}').update({
         "state": "claimed", "claimedBy": botName, "claimedAt": ServerValue.timestamp
       });
-
       int currentVal = targetTower.startValue;
-      while (currentVal < TARGET) {
+      while (currentVal != TARGET) {
         await Future.delayed(Duration(milliseconds: 1500 + Random().nextInt(2000)));
         if (timeLeft.value <= 0) return;
-
         if (currentVal * 2 <= TARGET) {
           currentVal *= 2;
         } else if (currentVal + 10 <= TARGET) {
           currentVal += 10;
         } else {
-          // Reset internal bot jika stuck (tidak mungkin dengan target 1000 & +10)
-          break;
+          // Jika bot kelebihan, bot akan melakukan reset mandiri
+          int newStartValue = (Random().nextInt(18) + 2) * 5;
+          currentVal = newStartValue;
         }
         await _db.ref('liveMatches/match123/teams/$team/towers/${targetTower.id}').update({"startValue": currentVal});
       }
@@ -170,7 +152,6 @@ class GameController extends GetxController {
     await _db.ref('liveMatches/match123/teams/$team/towers/${tower.id}').update({
       "state": "solved", "solvedBy": botName, "startValue": 1000
     });
-
     await _db.ref('liveMatches/match123/teams/$team/score').runTransaction((score) {
       int newScore = (score as int? ?? 0) + 1;
       if (newScore >= 20) _showWinnerDialog("TIM $team");
@@ -178,17 +159,14 @@ class GameController extends GetxController {
     });
   }
 
-  // --- 4. GAMEPLAY LOGIC (REVISI HARUS PAS 1000) ---
+  // --- REVISI: APPLY OPERATION (Biarkan melebihi 1000, notifikasi dihapus) ---
   void applyOperation(bool isMultiply, Tower tower, String team) {
     if (currentValue.value == TARGET) return;
 
     int nextValue = isMultiply ? currentValue.value * 2 : currentValue.value + 10;
     
-    if (nextValue > TARGET) {
-      Get.snackbar("TOO MUCH!", "Angka tidak boleh melebihi 1000!", 
-        backgroundColor: Colors.redAccent, colorText: Colors.white);
-      return;
-    }
+    // Batas maksimal sistem tetap dijaga agar tidak crash
+    if (nextValue > MAX_VALUE) return;
 
     currentValue.value = nextValue;
     movesCount.value++;
@@ -196,7 +174,10 @@ class GameController extends GetxController {
     
     _db.ref('liveMatches/match123/teams/$team/towers/${tower.id}').update({"startValue": currentValue.value});
     
-    if (currentValue.value == TARGET) _finishSolve(tower, team);
+    // Hanya finish jika angkanya PAS 1000
+    if (currentValue.value == TARGET) {
+      _finishSolve(tower, team);
+    }
   }
 
   Future<void> _finishSolve(Tower tower, String team) async {
@@ -204,13 +185,11 @@ class GameController extends GetxController {
     await _db.ref('liveMatches/match123/teams/$team/towers/${tower.id}').update({
       "state": "solved", "solvedBy": userId, "startValue": 1000
     });
-
     await _db.ref('liveMatches/match123/teams/$team/score').runTransaction((score) {
       int newScore = (score as int? ?? 0) + 1;
       if (newScore >= 20) _showWinnerDialog("TIM $team");
       return Transaction.success(newScore);
     });
-
     Future.delayed(const Duration(milliseconds: 800), () => Get.back());
   }
 
@@ -226,7 +205,6 @@ class GameController extends GetxController {
     );
   }
 
-  // --- 5. INITIALIZE & LISTENERS ---
   Future<void> resetSingleTower(Tower tower, String team) async {
     int newStartValue = (Random().nextInt(18) + 2) * 5;
     await _db.ref('liveMatches/match123/teams/$team/towers/${tower.id}').update({
@@ -311,10 +289,10 @@ class GameController extends GetxController {
       towers["tower_$i"] = {"startValue": val, "state": "available"};
     }
     await matchRef.set({
-      "meta": {"status": "running", "durationSec": 300},
+      "meta": {"status": "running", "durationSec": 600},
       "teams": {"A": {"score": 0, "towers": towers}, "B": {"score": 0, "towers": towers}}
     });
-    timeLeft.value = 300;
+    timeLeft.value = 600;
   }
 
   @override
